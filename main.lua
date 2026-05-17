@@ -4,11 +4,11 @@ local CoreGui = game:GetService("CoreGui")
 local localPlayer = Players.LocalPlayer
 local ByteNetEvent = ReplicatedStorage:WaitForChild("ByteNetReliable")
 
--- [[ ความปลอดภัยขั้นสูงสุด ]]
--- สคริปต์นี้สร้าง UI แยกอิสระ ปลอดภัย 100% ไม่ยุ่งเกี่ยว ไม่สั่งลบ (Destroy) หน้าโฮมและแท็บแถบเมนูด้านบนของ UI เกมหลักแน่นอน
+-- [[ กฎความปลอดภัยของระบบ UI ]]
+-- สคริปต์นี้สร้างหน้าต่างแจ้งเตือนแยกเป็นเอกเทศ ไม่ยุ่งเกี่ยว ไม่สั่งลบ (Destroy) หน้าโฮมและแท็บเมนูด้านบนของ UI เกมเด็ดขาด
 
 -- ========================================================
--- [ กล่องแสดงสถานะการทำงานแบบคลีน (No Button) ]
+-- [ หน้าต่างแสดงสถานะแบบคลีนกะทัดรัด (Status Monitor Only) ]
 -- ========================================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "UTDX_Monitor_UI"
@@ -82,14 +82,14 @@ local function runInGameFarm()
     end)
     updateStatus("เล่นมาโคร Slot 1 [กำลังฟาร์ม]", Color3.fromRGB(46, 204, 113))
     
-    -- 🛑 [ระบบตรวจจับจบเกม: รอจนกว่าหน้าต่างผลลัพธ์จะปรากฏขึ้นตามรูป 3] 🛑
+    -- 🛑 [ระบบตรวจจับจบเกม: สแกนหาหน้าจอผลลัพธ์จากรูปจริงความถี่สูง] 🛑
     local playerGui = localPlayer:WaitForChild("PlayerGui")
     local isUIActive = false
     
     repeat
-        task.wait(1) -- ลูปสแกนหาหน้าจอสรุปผลลัพธ์ความถี่สูงทุก 1 วินาที
+        task.wait(1) -- ตรวจเช็คทุก 1 วินาทีเพื่อความแม่นยำสูงสุด
         
-        -- ดักจับโครงสร้างตามรูปภาพที่คุณส่งมา (เช็คทั้งหน้าต่างหลัก และระบบสับเปลี่ยน)
+        -- ดักจับจากหน้าต่างผลลัพธ์หลักตามรูปภาพแพ้/ชนะที่คุณส่งมา
         local gameUI = playerGui:FindFirstChild("GameUI")
         if gameUI then
             local missionResult = gameUI:FindFirstChild("MissionResultFrame")
@@ -98,18 +98,18 @@ local function runInGameFarm()
             end
         end
         
-        -- ดักจับโครงสร้างหน้า Finished (กรณีชนะแบบเดิม)
+        -- ดักจับระบบสแตนด์บายฉากชนะตัวเก่า (Finished) กันเหนียว
         local finishedGui = playerGui:FindFirstChild("Finished")
         if finishedGui and finishedGui.Enabled == true then
             isUIActive = true
         end
     until isUIActive
     
-    -- สั่งงานทันทีเมื่อหน้าจอสรุปผลแพ้/ชนะอันใดอันหนึ่งเด้งขึ้นมา
+    -- สั่งงานทันทีเมื่อหน้าจอสรุปผลของเกมทำงานจริง
     updateStatus("ตรวจพบ UI สรุปผล! เริ่มการโหวต Replay...", Color3.fromRGB(241, 196, 15))
     task.wait(2)
     
-    -- รัวดาต้าส่งโหวต Replay 5 ครั้งสู้ดีเลย์
+    -- กดยิงรีโมท Replay 5 ครั้งสู้ระบบดีเลย์ของห้อง
     for i = 1, 5 do
         pcall(function() waveRE:WaitForChild("VoteReplay"):FireServer() end)
         task.wait(1)
@@ -117,49 +117,50 @@ local function runInGameFarm()
     
     task.wait(5)
     
-    -- ตรวจสอบกระบวนการหลังกดส่ง: ถ้าหน้าจอ UI ผลลัพธ์ยังค้างอยู่ แสดงว่ากดไม่ผ่านหรือ Rift รีรอบไปแล้ว
-    local stillKickedOrEnd = false
+    -- เช็คตรวจสอบกระบวนการหลังกดส่ง: ถ้าหน้าจอ UI ผลลัพธ์ยังค้างอยู่ แสดงว่ากดไม่สำเร็จหรือด่าน Rift ปิดรอบไปแล้ว
+    local stillInEndScreen = false
+    
     local gameUI = playerGui:FindFirstChild("GameUI")
     if gameUI then
         local missionResult = gameUI:FindFirstChild("MissionResultFrame")
-        if missionResult and missionResult.Visible == true then stillKickedOrEnd = true end
+        if missionResult and missionResult.Visible == true then stillInEndScreen = true end
     end
     
     local finishedGui = playerGui:FindFirstChild("Finished")
-    if finishedGui and finishedGui.Enabled == true then stillKickedOrEnd = true end
+    if finishedGui and finishedGui.Enabled == true then stillInEndScreen = true end
     
-    if stillKickedOrEnd then
-        -- ถ้าปุ่มหายหรือกด Replay ต่อไม่ได้แล้ว บังคับส่ง Packet กลับล็อบบี้ทันที
+    if stillInEndScreen then
+        -- ถ้ากด Replay ซ้ำไม่ได้แล้ว ให้ส่ง Packet บังคับถอนตัววาร์ปกลับล็อบบี้ทันที
         updateStatus("ปุ่ม Replay หมดแล้ว! กำลังกลับ Lobby...", Color3.fromRGB(231, 76, 60))
         pcall(function() waveRE:WaitForChild("ToLobby"):FireServer() end)
     else
-        updateStatus("Replay สำเร็จ! กำลังโหลดแมพใหม่...", Color3.fromRGB(46, 204, 113))
+        updateStatus("Replay สำเร็จ! กำลังโหลดห้องใหม่...", Color3.fromRGB(46, 204, 113))
     end
 end
 
 -- ========================================================
--- [ ลูปหลัก ตรวจสอบตำแหน่งแมพเพื่อเริ่มทำงานออโต้ ]
+-- [ ลูปหลัก ตรวจสอบพิกัดพื้นที่และรันบอทอัตโนมัติ ]
 -- ========================================================
 task.spawn(function()
     while true do
+        -- เช็คพิกัดว่าตัวละครอยู่ที่ห้อง Lobby หรือไม่
         if game.PlaceId == 16641147425 or workspace:FindFirstChild("Lobby") or not workspace:FindFirstChild("Map") then 
             updateStatus("อยู่ที่ Lobby กำลังยิงเข้า Rift...", Color3.fromRGB(52, 152, 219))
             
-            -- เลือกเข้า MegunaRift
+            -- ส่งคำสั่ง Remote เลือกด่าน Rift
             pcall(function()
                 local riftArgs1 = { buffer.fromstring(")\n\000MegunaRift\000\000\000\128?\001\0001\000\004\000Easy\000\000\005\000Rifts\000\000") }
                 ByteNetEvent:FireServer(unpack(riftArgs1))
             end)
             task.wait(0.1)
             
-            -- เลือกเข้า GojoRift
             pcall(function()
                 local riftArgs2 = { buffer.fromstring(")\b\000GojoRift\000\000\000\128?\001\0001\000\004\000Easy\000\000\005\000Rifts\000\000") }
                 ByteNetEvent:FireServer(unpack(riftArgs2))
             end)
             task.wait(0.2)
             
-            -- สั่งเข้าเล่นทันที
+            -- ยิง Remote สั่งคลิกปุ่มเริ่มเกม
             pcall(function()
                 local startArgs = { buffer.fromstring(",\000,\000") }
                 ByteNetEvent:FireServer(unpack(startArgs))
@@ -168,9 +169,9 @@ task.spawn(function()
             updateStatus("เริ่มเกมแล้ว รอวาร์ปเข้าด่าน...", Color3.fromRGB(241, 196, 15))
             task.wait(5)
         else
-            -- อยู่ในเซิร์ฟเวอร์ด่านฟาร์ม
+            -- หากย้ายห้องมาอยู่ในด่านฟาร์มเรียบร้อยแล้ว
             runInGameFarm()
-            break
+            break -- ออกจากลูปล็อบบี้เพื่อส่งไม้ต่อให้ระบบในด่านคุมลูปชีวิตเกมยาวๆ
         end
         task.wait(2)
     end
